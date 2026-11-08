@@ -1,0 +1,6 @@
+{
+  "appId": "com.gbf.goldbrick.tracker",
+  "appName": "GBF緋緋金記錄",
+  "webDir": "www",
+  "bundledWebRuntime": false
+}

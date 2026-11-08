@@ -1,0 +1,13 @@
+{
+  "name": "GBF 緋緋金記錄系統",
+  "short_name": "GBF緋緋金",
+  "description": "GBF 大巴HL戰鬥次數、藍箱及緋緋金出現次數記錄與%數據分析應用",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#080c14",
+  "theme_color": "#080c14",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
