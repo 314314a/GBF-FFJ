@@ -1,1 +1,85 @@
+name: Build Android APK (GBF Gold Brick Tracker)
 
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-android-apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: 1. Checkout Repository (Pure Git)
+        run: |
+          git init .
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --depth=1 origin "${GITHUB_SHA}"
+          git checkout -f FETCH_HEAD
+
+      - name: 2. Auto-Unzip & Prepare Web Assets
+        run: |
+          if [ ! -f "index.html" ]; then
+            ZIP_FILE=$(ls *.zip 2>/dev/null | head -n 1 || true)
+            if [ -n "$ZIP_FILE" ]; then
+              unzip -o "$ZIP_FILE"
+            fi
+          fi
+          mkdir -p www
+          if [ -f "index.html" ]; then
+            cp -f index.html www/index.html
+          fi
+          [ -f "manifest.json" ] && cp -f manifest.json www/ || true
+          [ -f "sw.js" ] && cp -f sw.js www/ || true
+          [ -f "icon-192.png" ] && cp -f icon-192.png www/ || true
+          [ -f "icon-512.png" ] && cp -f icon-512.png www/ || true
+
+      - name: 3. Initialize Capacitor Android Project
+        run: |
+          if [ -n "${JAVA_HOME_17_X64:-}" ]; then
+            export JAVA_HOME="$JAVA_HOME_17_X64"
+            export PATH="$JAVA_HOME/bin:$PATH"
+          fi
+          if [ ! -f "package.json" ]; then
+            printf '{"name":"gbf-gold-brick-tracker","version":"1.0.0","private":true}\n' > package.json
+          fi
+          if [ ! -f "capacitor.config.json" ]; then
+            printf '{"appId":"com.gbf.goldbrick.tracker","appName":"GBF緋緋金記錄","webDir":"www","bundledWebRuntime":false}\n' > capacitor.config.json
+          fi
+          npm install --no-audit --no-fund --fetch-timeout=60000 @capacitor/core@^6.0.0 @capacitor/cli@^6.0.0 @capacitor/android@^6.0.0
+          npx cap telemetry off || true
+          rm -rf android
+          npx cap add android
+          npx cap copy android
+
+      - name: 4. Configure Permissions & Build APK
+        run: |
+          if [ -n "${JAVA_HOME_17_X64:-}" ]; then
+            export JAVA_HOME="$JAVA_HOME_17_X64"
+            export PATH="$JAVA_HOME/bin:$PATH"
+          fi
+          sed -i 's/networkTimeout=10000/networkTimeout=60000/g' android/gradle/wrapper/gradle-wrapper.properties || true
+          sed -i 's|<application|<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/><uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/><application|' android/app/src/main/AndroidManifest.xml || true
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: 5. Save APK to Repository & Releases
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          APK_PATH="android/app/build/outputs/apk/debug/app-debug.apk"
+          if [ -f "$APK_PATH" ]; then
+            cp -f "$APK_PATH" ./gbf-gold-brick-tracker.apk
+            cp -f "$APK_PATH" ./GBF緋緋金記錄.apk
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add gbf-gold-brick-tracker.apk GBF緋緋金記錄.apk
+            git commit -m "Auto-build Android APK [skip ci]" || true
+            git push origin HEAD:${GITHUB_REF_NAME} || true
+            gh release create "v1.0.${GITHUB_RUN_NUMBER}" ./gbf-gold-brick-tracker.apk --title "GBF 緋緋金記錄 APK v1.0.${GITHUB_RUN_NUMBER}" --notes "自動編譯 Android APK 安裝檔" || true
+          fi
