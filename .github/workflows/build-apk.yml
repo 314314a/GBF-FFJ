@@ -28,54 +28,50 @@ jobs:
               unzip -o "$ZIP_FILE"
             fi
           fi
+          rm -rf www android
           mkdir -p www
           if [ -f "index.html" ]; then
             cp -f index.html www/index.html
           fi
-          [ -f "manifest.json" ] && cp -f manifest.json www/ || true
-          [ -f "sw.js" ] && cp -f sw.js www/ || true
-          [ -f "icon-192.png" ] && cp -f icon-192.png www/ || true
-          [ -f "icon-512.png" ] && cp -f icon-512.png www/ || true
-          [ -f "icon.png" ] && cp -f icon.png www/ || true
+          for f in manifest.json sw.js icon-192.png icon-512.png icon.png; do
+            [ -f "$f" ] && cp -f "$f" www/ || true
+          done
 
       - name: 3. Initialize Capacitor Android Project
         run: |
-          if [ -n "${JAVA_HOME_17_X64:-}" ]; then
-            export JAVA_HOME="$JAVA_HOME_17_X64"
-            export PATH="$JAVA_HOME/bin:$PATH"
-          fi
-          if [ ! -f "package.json" ]; then
-            echo '{"name":"blue-chest-tracker","version":"1.0.0","private":true}' > package.json
-          fi
-          if [ ! -f "capacitor.config.json" ]; then
-            echo '{"appId":"com.gbf.bluechest.tracker","appName":"藍箱記錄","webDir":"www","bundledWebRuntime":false}' > capacitor.config.json
-          fi
-          npm install --no-audit --no-fund --fetch-timeout=60000 @capacitor/core@^6.0.0 @capacitor/cli@^6.0.0 @capacitor/android@^6.0.0
+          export JAVA_HOME="${JAVA_HOME_17_X64:-/usr/lib/jvm/temurin-17-jdk-amd64}"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          echo '{"name":"blue-chest-tracker","version":"1.0.0","private":true,"dependencies":{"@capacitor/android":"6.1.2","@capacitor/cli":"6.1.2","@capacitor/core":"6.1.2"}}' > package.json
+          echo '{"appId":"com.gbf.bluechest.tracker","appName":"藍箱記錄","webDir":"www","bundledWebRuntime":false}' > capacitor.config.json
+          npm install --no-audit --no-fund --fetch-timeout=60000
           npx cap telemetry off || true
-          rm -rf android
           npx cap add android
-          npx cap copy android
+          npx cap sync android
 
-      - name: 4. Configure App Icon, Permissions & Build APK
+      - name: 4. Overwrite Android Icons with Blue Chest & Configure Permissions
         run: |
-          if [ -n "${JAVA_HOME_17_X64:-}" ]; then
-            export JAVA_HOME="$JAVA_HOME_17_X64"
-            export PATH="$JAVA_HOME/bin:$PATH"
-          fi
+          export JAVA_HOME="${JAVA_HOME_17_X64:-/usr/lib/jvm/temurin-17-jdk-amd64}"
+          export PATH="$JAVA_HOME/bin:$PATH"
           python3 -c "
           from PIL import Image
           import os
-          src = 'icon-512.png' if os.path.exists('icon-512.png') else 'icon-192.png'
-          if os.path.exists(src):
-              img = Image.open(src)
-              densities = {'mipmap-mdpi': 48, 'mipmap-hdpi': 72, 'mipmap-xhdpi': 96, 'mipmap-xxhdpi': 144, 'mipmap-xxxhdpi': 192}
+          src_p = 'icon-512.png' if os.path.exists('icon-512.png') else ('icon-192.png' if os.path.exists('icon-192.png') else 'icon.png')
+          if os.path.exists(src_p):
+              img = Image.open(src_p).convert('RGBA')
+              densities = {
+                  'mipmap-mdpi': 48,
+                  'mipmap-hdpi': 72,
+                  'mipmap-xhdpi': 96,
+                  'mipmap-xxhdpi': 144,
+                  'mipmap-xxxhdpi': 192
+              }
               for folder, size in densities.items():
                   target_dir = os.path.join('android', 'app', 'src', 'main', 'res', folder)
                   if os.path.exists(target_dir):
                       resized = img.resize((size, size), Image.Resampling.LANCZOS)
-                      resized.save(os.path.join(target_dir, 'ic_launcher.png'))
-                      resized.save(os.path.join(target_dir, 'ic_launcher_round.png'))
-                      resized.save(os.path.join(target_dir, 'ic_launcher_foreground.png'))
+                      for target_name in ['ic_launcher.png', 'ic_launcher_round.png', 'ic_launcher_foreground.png']:
+                          resized.save(os.path.join(target_dir, target_name), format='PNG')
+                      print('Updated Android launcher icon for:', folder, size)
           " || true
           sed -i 's/networkTimeout=10000/networkTimeout=60000/g' android/gradle/wrapper/gradle-wrapper.properties || true
           sed -i 's|<application|<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/><uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/><application|' android/app/src/main/AndroidManifest.xml || true
@@ -94,8 +90,8 @@ jobs:
             cp -f "$APK_PATH" ./藍箱記錄.apk
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add blue-chest-tracker.apk 藍箱記錄.apk
-            git commit -m "Auto-build Android APK [skip ci]" || true
+            git add -f blue-chest-tracker.apk 藍箱記錄.apk
+            git commit -m "Auto-build 藍箱記錄 Android APK [skip ci]" || true
             git push origin HEAD:${GITHUB_REF_NAME} || true
-            gh release create "v1.0.${GITHUB_RUN_NUMBER}" ./blue-chest-tracker.apk --title "藍箱記錄 APK v1.0.${GITHUB_RUN_NUMBER}" --notes "藍箱記錄 Android APK 安裝檔" || true
+            gh release create "v1.0.${GITHUB_RUN_NUMBER}" ./藍箱記錄.apk --title "藍箱記錄 APK v1.0.${GITHUB_RUN_NUMBER}" --notes "點擊下方 藍箱記錄.apk 即可直接下載到 Android 手機安裝並離線使用。" || true
           fi
