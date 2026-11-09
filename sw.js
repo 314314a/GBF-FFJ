@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gbf-gold-tracker-v1';
+const CACHE_NAME = 'blue-chest-tracker-v1';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE_NAME).then((c) => c.addAll(ASSETS)));

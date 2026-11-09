@@ -1,6 +1,6 @@
 {
-  "name": "GBF 緋緋金記錄系統",
-  "short_name": "GBF緋緋金",
+  "name": "藍箱記錄",
+  "short_name": "藍箱記錄",
   "description": "GBF 大巴HL戰鬥次數、藍箱及緋緋金出現次數記錄與%數據分析應用",
   "start_url": "./index.html",
   "display": "standalone",
